@@ -372,6 +372,30 @@ impl Param {
             tokens.extend(quote! { .deprecated(Some(#deprecated)) });
         }
 
+        let value_type =
+            pop_feature!(param_features => Feature::ValueType(_) as Option<features::attributes::ValueType>);
+        let component = value_type
+            .as_ref()
+            .map_try(|value_type| value_type.as_type_tree())?
+            .unwrap_or(type_tree);
+        let alias_type = component.get_alias_type()?;
+        let alias_type_tree = alias_type.as_ref().map_try(TypeTree::from_type)?;
+        let component = alias_type_tree.as_ref().unwrap_or(&component);
+
+        let required: Option<features::attributes::Required> =
+            pop_feature!(param_features => Feature::Required(_)).into_inner();
+        let component_required =
+            !component.is_option() && super::is_required(field_serde_params, serde_container);
+
+        let required = match (required, component_required) {
+            (Some(required_feature), _) => Into::<Required>::into(required_feature.is_true()),
+            (None, component_required) => Into::<Required>::into(component_required),
+        };
+
+        tokens.extend(quote! {
+            .required(#required)
+        });
+
         let schema_with = pop_feature!(param_features => Feature::SchemaWith(_));
         if let Some(schema_with) = schema_with {
             let schema_with = crate::as_tokens_or_diagnostics!(&schema_with);
@@ -383,28 +407,6 @@ impl Param {
                 tokens.extend(quote! { .description(Some(#description))})
             }
 
-            let value_type = pop_feature!(param_features => Feature::ValueType(_) as Option<features::attributes::ValueType>);
-            let component = value_type
-                .as_ref()
-                .map_try(|value_type| value_type.as_type_tree())?
-                .unwrap_or(type_tree);
-            let alias_type = component.get_alias_type()?;
-            let alias_type_tree = alias_type.as_ref().map_try(TypeTree::from_type)?;
-            let component = alias_type_tree.as_ref().unwrap_or(&component);
-
-            let required: Option<features::attributes::Required> =
-                pop_feature!(param_features => Feature::Required(_)).into_inner();
-            let component_required =
-                !component.is_option() && super::is_required(field_serde_params, serde_container);
-
-            let required = match (required, component_required) {
-                (Some(required_feature), _) => Into::<Required>::into(required_feature.is_true()),
-                (None, component_required) => Into::<Required>::into(component_required),
-            };
-
-            tokens.extend(quote! {
-                .required(#required)
-            });
             tokens.extend(param_features.to_token_stream()?);
 
             let is_query = matches!(container_attributes.parameter_in, Some(Feature::ParameterIn(p)) if p.is_query());

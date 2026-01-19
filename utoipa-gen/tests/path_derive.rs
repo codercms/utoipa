@@ -1034,8 +1034,10 @@ fn derive_path_with_into_params_custom_schema() {
     #[into_params(parameter_in = Query)]
     #[allow(unused)]
     struct Query {
-        #[param(schema_with = custom_type)]
+        #[param(schema_with = custom_type, required = true)]
         email: String,
+        #[param(schema_with = custom_type)]
+        email2: String,
     }
 
     #[utoipa::path(
